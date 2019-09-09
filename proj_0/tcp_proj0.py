@@ -68,22 +68,17 @@ def SendToAddress(targetAddress: EchoServerAddress, message=""):
 	
 	# connecting to the server 
 	sock.connect((targetAddress.ip, int(targetAddress.port))) 
-	
-	#Collect what we should send for echo
-	if len(message) == 0:
-		print("Input a message to be send out then echoed.")
-		message = input()
 
 	#Add a tag to show origin
 	message = address.name + " sent: " + message
 
 	#Send
-	print("Sending " + message + ".")
+	print("Sending \"" + message + "\".")
 	sock.sendall(bytes(message, 'utf-8'))
 
 	#Listen for the response
 	response = str(sock.recv(packetSize), 'utf-8')
-	print("Received message: " + response + ".")
+	print("Received message: \"" + response + "\".")
 
 	#Done
 	sock.close()
@@ -105,12 +100,12 @@ def SetUpListening():
 		try:
 			#Receive and parse the message
 			message = str(recvSocket.recv(packetSize), "utf-8")
-			print("Received Message: " + message)
+			print("Received Message: \"" + message + "\".")
 			#origin = message.split(" sent: ")[0]
 			message = message.split("sent: ")[1]
 
 			recvSocket.sendall(bytes(address.name + " replies: " + message, 'utf-8'))
-			log("Echoed back to " + connectionAddress)
+			log("Echoed back to " + connectionAddress[0] + ":" + connectionAddress[1])
 
 
 		finally:
@@ -119,6 +114,22 @@ def SetUpListening():
 
 	#Done?
 	recvSocket.close()
+
+def SendMessages(message = ""):
+	if len(message) == 0:
+		print("Input a message to send:")
+		message = input()
+
+	#Set up parallel sending processes
+	sendingProcesses = []
+	for server in serverList:
+		if server.name != address.name:
+			sendingProcesses.append(Process(target=SendToAddress, args=(server, message)))
+	
+	#Start those processes
+	for sendProcess in sendingProcesses:
+		sendProcess.start()
+	return sendingProcesses
 
 
 #Open, prepare for echoing
@@ -138,18 +149,7 @@ if __name__ == '__main__':
 	listeningProcess = Process(target=SetUpListening)
 	listeningProcess.start()
 
-	print("Ready?:")
-	input()
-
-
-	sendingProcesses = []
-	for server in serverList:
-		if server.name != address.name:
-			sendingProcesses.append(Process(target=SendToAddress, args=(server, "HelloWorld")))
-	
-	for sendProcess in sendingProcesses:
-		sendProcess.start()
-
+	sendingProcesses = SendMessages()
 
 	#Wait for all to join
 	for process in sendingProcesses:
