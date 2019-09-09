@@ -21,7 +21,7 @@ class EchoServerAddress:
 	port: str
 
 serverList = []
-address = EchoServerAddress #Self
+address = EchoServerAddress() #Self
 
 
 #Given the file path to the hostNames list, load in server names and IPs
@@ -31,16 +31,17 @@ def ReadHostsFile(hostNamesFilePath):
 	for line in file:
 		#Parse line and load in.
 		words = line.split(' ')	
-		newServer = EchoServerAddress
+		newServer = EchoServerAddress()
 		newServer.name = words[0]
 		newServer.ip = words[1]
 		newServer.port = words[2]
 		serverList.append(newServer)
 
 		#Copy info for self as needed
-		if newServer.name = address.name:
-			address.ip = newServer.ip
-			address.port = newServer.port
+		if words[0] == address.name:
+			address.ip = words[1]
+			address.port = words[2]
+			#print(newServer.name + words[0] + address.name + address.ip + address.port)
 
 	file.close()
 
@@ -58,18 +59,18 @@ def SendToName(targetHostName: str, message: str):
 			return
 	print("Error: ", targetHostName, " isn't in the host names file!")
 
-def SendToAddress(targetAddress: EchoServerAddress):  
-	try: 
+def SendToAddress(targetAddress: EchoServerAddress, message=""):
+	try:
 	    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
 	    print("Socket successfully created")
 	except socket.error as err:
-	    print("socket creation failed with error %s" %(err) )
+	    print("Socket creation failed with error %s" %(err) )
 	
 	# connecting to the server 
-	sock.connect((targetAddress.ip, targetAddress.port)) 
+	sock.connect((targetAddress.ip, int(targetAddress.port))) 
 	
 	#Collect what we should send for echo
-	if not message:
+	if len(message) == 0:
 		print("Input a message to be send out then echoed.")
 		message = input()
 
@@ -77,11 +78,12 @@ def SendToAddress(targetAddress: EchoServerAddress):
 	message = address.name + " sent: " + message
 
 	#Send
-	sock.sendall(message)
+	print("Sending " + message + ".")
+	sock.sendall(bytes(message, 'utf-8'))
 
 	#Listen for the response
-	response = sock.recv(packetSize)
-	print "Received message: " + response
+	response = str(sock.recv(packetSize), 'utf-8')
+	print("Received message: " + response + ".")
 
 	#Done
 	sock.close()
@@ -90,28 +92,30 @@ def SendToAddress(targetAddress: EchoServerAddress):
 #Start the loop to accept messages it will return
 def SetUpListening():
 	#Set up socket
+	print("Setting up socket at " + address.ip + ":" + address.port)
 	recvSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	recvSocket.bind((address.ip, address.port))
+	recvSocket.bind((address.ip, int(address.port)))
 
 	recvSocket.listen(1)
 	while True:
 		#Wait for a connection
-		connectionSocket, connectionAddress = recvSocket.accept()
+		recvSocket, connectionAddress = recvSocket.accept()
 
 		#Got a message, better copy and send it back
 		try:
 			#Receive and parse the message
-			message = data.recv(packetSize)
+			message = str(recvSocket.recv(packetSize), "utf-8")
 			print("Received Message: " + message)
-			message = message.split("sent: ")[2]
+			#origin = message.split(" sent: ")[0]
+			message = message.split("sent: ")[1]
 
-			connection.sendall(address.name + " replies: " + message)
+			recvSocket.sendall(bytes(address.name + " replies: " + message, 'utf-8'))
 			log("Echoed back to " + connectionAddress)
 
 
 		finally:
 			#Always close once done
-			connectionSocket.close()
+			recvSocket.close()
 
 	#Done?
 	recvSocket.close()
@@ -121,16 +125,31 @@ def SetUpListening():
 if __name__ == '__main__':
 
 	#Set self up
-	print("What is this server's name?")
-	address.name = input()
+	if len(sys.argv) < 2:
+		print("What is this server's name?")
+		address.name = input()
+	else:
+		address.name = sys.argv[1]
+		print("Set server name to " + sys.argv[1])
+
 	ReadHostsFile("knownhosts.txt")
-	listeningProcess = Process(target=SetUpListening())
+
+
+	listeningProcess = Process(target=SetUpListening)
 	listeningProcess.start()
+
+	print("Ready?:")
+	input()
+
 
 	sendingProcesses = []
 	for server in serverList:
-		sendingProcesses.append(Process(target=SendToAddress(server)))
-		sendingProcesses[len(sendingProcess) - 1].start()
+		if server.name != address.name:
+			sendingProcesses.append(Process(target=SendToAddress, args=(server, "HelloWorld")))
+	
+	for sendProcess in sendingProcesses:
+		sendProcess.start()
+
 
 	#Wait for all to join
 	for process in sendingProcesses:
